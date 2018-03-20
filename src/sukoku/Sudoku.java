@@ -1,226 +1,188 @@
 package sukoku;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Random;
 import java.util.Scanner;
+import javafx.util.Pair;
 
 public class Sudoku {
 
-	private int[][] board;
-	private boolean invalidMove = false;
-	private String initialCoordinate;
-	private boolean solved = false;
+    private int[][] board;
+    private boolean solved;
+    private Pair<Integer, Integer> initialEmptyCoordinates;
 
-	public static void main(String[] args) throws Exception {
+    public int getBoardValue(Pair<Integer, Integer> coordinates) {
+        return this.board[getYAxisValue(coordinates)][getXAxisValue(coordinates)];
+    }
 
-		Sudoku game = new Sudoku();
+    public void setBoardValue(Pair<Integer, Integer> coordinates, int value) {
+        this.board[getYAxisValue(coordinates)][getXAxisValue(coordinates)] = value;
+    }
 
-		System.out.println("1 to generate a puzzle\n2 to solve a puzzle");
+    public boolean isSolved() {
+        return solved;
+    }
 
-		Scanner scan = new Scanner(System.in);
-		int i = scan.nextInt();
-		scan.close();
-		if (i==1) {
-			game.generateInitialRow();
-			game.importPuzzle();
-			game.solve();// after calling solve(), set the solved flag to false if i wanna solve another puzzle again (like in a loop or something)
-			game.filterSolution();
-			game.importPuzzle();
-			game.saveBoard();
-		}
-		if (i==2) {
-			game.importPuzzle();
-			game.solve();
-			game.saveBoard();
-		}
-		System.out.println("/End/");
+    public void setSolved(boolean solved) {
+        this.solved = solved;
+    }
 
-	}
+    public Pair<Integer, Integer> getInitialEmptyCoordinates() {
+        return initialEmptyCoordinates;
+    }
 
-	private void filterSolution() throws Exception {
+    public void setInitialEmptyCoordinates(Pair<Integer, Integer> initialEmptyCoordinates) {
+        this.initialEmptyCoordinates = initialEmptyCoordinates;
+    }
 
-		Random rand = new Random();
-		ArrayList<String> keep = new ArrayList<String>();
-		keep.clear();
-		String randomNum;
+    public static void main(String[] args) {
 
-		while(keep.size()<20) {
-			randomNum = String.valueOf(rand.nextInt(89));
+        System.out.println("Start");
+        Sudoku s = new Sudoku();
+        if (s.importedPuzzle()) {
+            System.out.println("Imported puzzle");
+            s.setSolved(false);
+            s.setInitialEmptyCoordinates(s.findNextEmptyCoordinates());
+            s.solve(s.getInitialEmptyCoordinates());
+            s.exportPuzzle();
+        }
+        System.out.println("End");
 
-			if(randomNum.length() == 1) randomNum = "0" + randomNum;
-			if(randomNum.charAt(1) == '9') continue;
-			if(keep.contains(randomNum)) continue;
+    }
 
-			keep.add(randomNum);
-		}
+    public Sudoku() {
+        zeroInitBoard();
+    }
 
-		PrintWriter out = new PrintWriter("coordinates.txt");
-		for (String x:keep) {
-			int yAxis = Integer.parseInt(String.valueOf(x.charAt(0)));
-			int xAxis = Integer.parseInt(String.valueOf(x.charAt(1)));
-			out.println(x+board[yAxis][xAxis]);
-		}
-		out.close();
+    private void zeroInitBoard() {
+        board = new int[9][9];
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                setBoardValue(new Pair<>(i, j), 0);
+            }
+        }
+    }
 
-	}
+    private boolean importedPuzzle() {
 
-	private void generateInitialRow() throws Exception {
+        File file = new File("coordinates.txt");
+        Scanner sc;
+        try {
+            sc = new Scanner(file);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return false;
+        }
+        while (sc.hasNextLine()) {
+            parseAndSetBoardValues(sc.nextLine());
+        }
+        return true;
+    }
 
-		Random rand = new Random();
-		ArrayList<String> generated = new ArrayList<String>();
-		generated.clear();
-		String randomNum;
-		PrintWriter out = new PrintWriter("coordinates.txt");
-		int i=0;
-		while(generated.size()<9) {
-			randomNum = String.valueOf(rand.nextInt(9)+1);
-			if(generated.contains(randomNum)) continue;
-			generated.add(randomNum);
-			out.println("0" + i + randomNum);
-			i++;
-		}
-		out.close();
+    private void parseAndSetBoardValues(String line) {
+        int yAxis = Character.getNumericValue(line.charAt(0));
+        int xAxis = Character.getNumericValue(line.charAt(1));
+        int value = Character.getNumericValue(line.charAt(2));
 
-	}
+        setBoardValue(new Pair<>(yAxis, xAxis), value);
+    }
 
-	public void importPuzzle() throws Exception{
+    private Pair<Integer, Integer> findNextEmptyCoordinates() {
 
-		try(BufferedReader br = new BufferedReader(new FileReader("coordinates.txt"))) {
-			clearBoard();
-			String line = br.readLine();
+        for (int i = 0; i < 9; i++) {
+            for (int j = 0; j < 9; j++) {
+                if (getBoardValue(new Pair<>(i, j)) == 0) {
+                    return new Pair<>(i, j);
+                }
+            }
+        }
+        return null;
+    }
 
-			while (line != null) {
-				parse(line);
-				line = br.readLine();
-			}
-		}
-	}
+    private Integer getYAxisValue(Pair<Integer, Integer> coordinates) {
+        return coordinates.getKey();
+    }
 
-	public void solve() throws Exception {
-		initialCoordinate = emptyCoordinate(); 
-		solve(initialCoordinate);
-	}
+    private Integer getXAxisValue(Pair<Integer, Integer> coordinates) {
+        return coordinates.getValue();
+    }
 
-	private String solve(String coordinates) throws Exception {
+    private void solve(Pair<Integer, Integer> coordinates) {
 
-		while(!solved){
-			int yAxis = Integer.parseInt(String.valueOf(coordinates.charAt(0)));
-			int xAxis = Integer.parseInt(String.valueOf(coordinates.charAt(1)));
+        while(!isSolved()){
+            int yAxis = getYAxisValue(coordinates);
+            int xAxis = getXAxisValue(coordinates);
+            int value = getBoardValue(new Pair<>(yAxis, xAxis));
 
-			if(invalidMove){
-				invalidMove = false;
-				return null;
-			}
+            if (value == 9) {
+                if(coordinates.equals(getInitialEmptyCoordinates())) System.out.println("No solutions found.");
+                setBoardValue(new Pair<>(yAxis, xAxis), 0);
+                return;
+            }
 
-			if (board[yAxis][xAxis] == 9) {
-				if(coordinates.equals(initialCoordinate)) System.out.println("No solutions found.");
-				board[yAxis][xAxis] = 0;
-				return null;
-			}
+            setBoardValue(new Pair<>(yAxis, xAxis), 1 + value);
 
-			board[yAxis][xAxis] = 1 + board[yAxis][xAxis];
+            if(!validMove(coordinates)){
+                continue;
+            }
 
-			if(!validMove(coordinates)){
-				invalidMove = true;
-			}
+            Pair<Integer, Integer> nextEmptyCoordinates = findNextEmptyCoordinates();
+            if (null == nextEmptyCoordinates) {
+                setSolved(true);
+            }
 
-			String empties = emptyCoordinate();
-			if (empties.equals("99") && !invalidMove) {
-				solved = true;
-				return null;
-			}
+            solve(nextEmptyCoordinates);
+        }
+    }
 
-			solve(empties);
-		}
-		return null;
-	}
+    private boolean validMove(Pair<Integer, Integer> coordinates){
 
-	private String emptyCoordinate() {
+        int yAxis = getYAxisValue(coordinates);
+        int xAxis = getXAxisValue(coordinates);
+        int value = getBoardValue(new Pair<>(yAxis, xAxis));
 
-		for (int i=0;i<9;i++){
-			for (int j=0;j<9;j++){
-				if(board[i][j] == 0) {
-					StringBuilder sb = new StringBuilder();
-					sb.append(i);
-					sb.append(j);
-					return sb.toString();
-				}
-			}
-		}
-		return "99";
-	}
+        int count=0;
 
-	private boolean validMove(String coordinates){
-		return (validHorizontal(coordinates) && validVertical(coordinates) && validBlock(coordinates));
-	}
+        //vertical check
+        for (int i=0;i<9;i++){
+            if(getBoardValue(new Pair<>(i, xAxis)) == value) count++;
+        }
 
-	private boolean validBlock(String coordinates) {
-		int yAxis = Integer.parseInt(String.valueOf(coordinates.charAt(0)));
-		int xAxis = Integer.parseInt(String.valueOf(coordinates.charAt(1)));
+        //horizontal check
+        for (int j=0;j<9;j++){
+            if(getBoardValue(new Pair<>(yAxis, j)) == value) count++;
+        }
 
-		int yBlock = yAxis/3;
-		int xBlock = xAxis/3;
+        //block check
+        int yBlock = yAxis/3;
+        int xBlock = xAxis/3;
 
-		int count=0;
-		for (int i=(3*yBlock);i<(3*yBlock+3);i++){
-			for (int j=(3*xBlock);j<(3*xBlock+3);j++){
-				if(board[i][j] == board[yAxis][xAxis]) count++;
-			}
-		}
+        for (int i=(3*yBlock);i<(3*yBlock+3);i++){
+            for (int j=(3*xBlock);j<(3*xBlock+3);j++){
+                if(getBoardValue(new Pair<>(i, j)) == value) count++;
+            }
+        }
 
-		return (count<2);
-	}
+        return (count==3);
+    }
 
-	private boolean validVertical(String coordinates) {
-		int yAxis = Integer.parseInt(String.valueOf(coordinates.charAt(0)));
-		int xAxis = Integer.parseInt(String.valueOf(coordinates.charAt(1)));
+    private void exportPuzzle() {
 
-		int count=0;
-		for (int i=0;i<9;i++){
-			if(board[i][xAxis] == board[yAxis][xAxis]) count++;
-		}
-		return (count<2);
-	}
+        PrintWriter pw;
+        try {
+            pw = new PrintWriter("board.txt");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            return;
+        }
+        for (int i=0;i<9;i++){
+            for (int j=0;j<9;j++){
+                pw.print(getBoardValue(new Pair<>(i, j)) + " ");
+            }
+            pw.println();
+        }
+        pw.close();
+    }
 
-	private boolean validHorizontal(String coordinates) {
-		int yAxis = Integer.parseInt(String.valueOf(coordinates.charAt(0)));
-		int xAxis = Integer.parseInt(String.valueOf(coordinates.charAt(1)));
-
-		int count=0;
-		for (int j=0;j<9;j++){
-			if(board[yAxis][j] == board[yAxis][xAxis]) count++;
-		}
-		return (count<2);
-	}
-
-	private  void clearBoard() {
-		board = new int[9][9];
-		for (int i=0;i<9;i++){
-			for (int j=0;j<9;j++){
-				board[i][j] = 0;
-			}
-		}
-	}
-
-	private  void saveBoard() throws Exception {
-		PrintWriter out = new PrintWriter("board.txt");
-		for (int i=0;i<9;i++){
-			for (int j=0;j<9;j++){
-				out.print(board[i][j] + " ");
-			}
-			out.println();
-		}
-		out.close();
-	}
-
-	private void parse(String line) {
-		int yAxis = Integer.parseInt(String.valueOf(line.charAt(0)));
-		int xAxis = Integer.parseInt(String.valueOf(line.charAt(1)));
-		int value = Integer.parseInt(String.valueOf(line.charAt(2)));
-
-		board[yAxis][xAxis] = value;
-	}
 }
